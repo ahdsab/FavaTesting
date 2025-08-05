@@ -19,7 +19,6 @@ jobs:
     
     - name: Install dependencies
       run: |
-        pip install -r torch-requirements.txt
         pip install -r requirements.txt
     
     - name: Run tests
