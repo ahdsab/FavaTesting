@@ -53,7 +53,6 @@ class TestRunBQLFromIncomeStatement(unittest.TestCase):
         query_page.submit()
 
         self.assertGreater(query_page.get_results_row_count(), 0, "No rows returned from query")
-        sleep(10)
 
 if __name__ == "__main__":
     unittest.main()
