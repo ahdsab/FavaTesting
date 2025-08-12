@@ -4,6 +4,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from models.page_models import IncomeStatementPage
 from time import sleep
+from selenium.webdriver.chrome.options import Options
+import os
 
 # The query to run during the test
 BQL_QUERY = (
@@ -25,12 +27,23 @@ class TestRunBQLFromIncomeStatement(unittest.TestCase):
     def setUp(self):
         """
         Create a Chrome browser instance and open the Income Statement page.
+        Uses headless mode if HEADLESS env var is set (for CI environments).
         """
-        self.driver = webdriver.Chrome()
+        chrome_options = Options()
+        
+        # Enable headless mode for CI or when explicitly requested
+        if os.getenv("HEADLESS", "false").lower() in ("true", "1", "yes"):
+            chrome_options.add_argument("--headless=new")  # new headless mode in Chrome
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+        
+        self.driver = webdriver.Chrome(options=chrome_options)
         self.driver.maximize_window()
         self.wait = WebDriverWait(self.driver, 20)
         self.driver.get("http://54.73.240.131:5000/example-beancount-file/income_statement/")
 
+        
     def tearDown(self):
         """
         Close the browser after the test.
