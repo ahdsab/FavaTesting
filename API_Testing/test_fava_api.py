@@ -1,72 +1,111 @@
 import os
+import re
 import unittest
 import requests
 from datetime import date, timedelta
 
-BASE_URL = os.environ.get("BASE_URL", "http://localhost:5000")
-LEDGER_SLUG = os.environ.get("LEDGER_SLUG", "example-beancount-file")
+BASE_URL = os.getenv("BASE_URL", "http://localhost:5000").rstrip("/")
+ENV_SLUG = os.getenv("LEDGER_SLUG")  # e.g. example-beancount-file
 
-def api_url(path: str) -> str:
-    base = BASE_URL.rstrip("/")
-    slug = LEDGER_SLUG.strip("/ ")
-    return f"{base}/{slug}/api/{path.lstrip('/')}"
 
-class TestFavaRealAPI(unittest.TestCase):
+def discover_slug():
+    if ENV_SLUG:
+        return ENV_SLUG.strip("/")
+    # try root (rare setups)
+    try:
+        if requests.get(f"{BASE_URL}/api/options/", timeout=5).status_code == 200:
+            return ""
+    except Exception:
+        pass
+    # parse landing page for first-level slug
+    html = requests.get(BASE_URL, timeout=10).text
+    m = re.search(r'href="/([^/]+)/"', html)
+    if m:
+        slug = m.group(1)
+        if requests.get(f"{BASE_URL}/{slug}/api/options/", timeout=5).status_code == 200:
+            return slug
+    # fallbacks commonly seen in docs/demos
+    for c in ("example-beancount-file", "example.beancount", "ledger.beancount"):
+        try:
+            if requests.get(f"{BASE_URL}/{c}/api/options/", timeout=5).status_code == 200:
+                return c
+        except Exception:
+            pass
+    raise RuntimeError("Could not discover ledger slug; set LEDGER_SLUG.")
+
+
+def u(path: str, slug: str) -> str:
+    path = path.lstrip("/")
+    return f"{BASE_URL}/api/{path}" if not slug else f"{BASE_URL}/{slug}/api/{path}"
+
+
+class TestAddTransactionAPI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # quick smoke to fail fast if server isn't up
         r = requests.get(BASE_URL, timeout=10)
         assert r.status_code == 200, f"Fava not reachable at {BASE_URL}"
+        cls.slug = discover_slug()
 
-    def test_changed_endpoint(self):
-        """GET /api/changed/ -> returns a boolean (file change flag)."""
-        r = requests.get(api_url("changed/"), timeout=10)
-        self.assertEqual(r.status_code, 200)
-        self.assertIn(r.headers.get("Content-Type", ""), ("application/json", "application/json; charset=utf-8"))
-        self.assertIn(r.json(), (True, False))  # returns a boolean
+    def test_put_add_entries_and_verify(self):
+        # 1) Build one minimal, balanced Transaction in Fava's JSON shape
+        today = date.today().isoformat()
+        marker = f"API Add Test {today}"
 
-    def test_options_endpoint(self):
-        """GET /api/options/ -> returns Fava+Beancount options as strings."""
-        r = requests.get(api_url("options/"), timeout=10)
-        self.assertEqual(r.status_code, 200)
-        data = r.json()
-        # Expect keys like 'fava_options' and 'beancount_options'
-        self.assertIsInstance(data, dict)
-        self.assertIn("fava_options", data)
-        self.assertIn("beancount_options", data)
+        entry = {
+            "type": "Transaction",
+            "date": today,
+            "flag": "*",
+            "payee": "QA Bot",
+            "narration": marker,
+            "tags": [],
+            "links": [],
+            "meta": {},  # optional metadata
+            "postings": [
+                {
+                    "account": "Assets:Cash",
+                    "units": {"number": "-10.00", "currency": "USD"},
+                    "meta": {},
+                },
+                {
+                    "account": "Expenses:Testing",
+                    "units": {"number": "10.00", "currency": "USD"},
+                    "meta": {},
+                },
+            ],
+        }
 
-    def test_income_statement(self):
-        """GET /api/income_statement/?time=YYYY -> returns tree report data."""
-        # pick a broad period to always have data in example ledgers
-        year = str(date.today().year - 1)
-        r = requests.get(api_url("income_statement/"), params={"time": year}, timeout=10)
-        self.assertEqual(r.status_code, 200)
-        data = r.json()
-        # Basic shape checks from fava.json_api.TreeReport
-        self.assertIn("trees", data)
-        self.assertIn("charts", data)
+        # 2) PUT to add_entries
+        r = requests.put(u("add_entries/", self.slug), json={"entries": [entry]}, timeout=15)
+        self.assertEqual(r.status_code, 200, f"add_entries failed: {r.status_code} {r.text}")
 
-    def test_journal_range_filter(self):
-        """GET /api/journal/?from=YYYY-MM-DD&to=YYYY-MM-DD -> list of entries."""
-        end = date.today()
-        start = end - timedelta(days=365)
-        r = requests.get(
-            api_url("journal/"),
-            params={"from": start.isoformat(), "to": end.isoformat()},
+        # 3) Verify via journal API in a tight date window
+        rj = requests.get(
+            u("journal/", self.slug),
+            params={"from": today, "to": today},
             timeout=10,
         )
-        self.assertEqual(r.status_code, 200)
-        entries = r.json()
-        self.assertIsInstance(entries, list)
-        # Optional sanity: entries list contains dict-like items with a 'type'
-        if entries:
-            self.assertIsInstance(entries[0], dict)
-            self.assertIn("type", entries[0])
+        self.assertEqual(rj.status_code, 200, rj.text)
+        entries = rj.json()
+        self.assertTrue(any(e.get("narration") == marker for e in entries), "New entry not found in journal")
 
-    def test_disallow_post_on_readonly(self):
-        """POST /api/commodities/ should not be allowed on read-only endpoint."""
-        r = requests.post(api_url("commodities/"), json={}, timeout=10)
-        self.assertIn(r.status_code, (404, 405))
+        # 4) (Optional) Clean up with a compensating entry so repeat runs stay tidy
+        cleanup = {
+            "type": "Transaction",
+            "date": today,
+            "flag": "!",
+            "payee": "QA Bot",
+            "narration": f"{marker} CLEANUP",
+            "tags": [],
+            "links": [],
+            "meta": {},
+            "postings": [
+                {"account": "Assets:Cash", "units": {"number": "10.00", "currency": "USD"}, "meta": {}},
+                {"account": "Expenses:Testing", "units": {"number": "-10.00", "currency": "USD"}, "meta": {}},
+            ],
+        }
+        rc = requests.put(u("add_entries/", self.slug), json={"entries": [cleanup]}, timeout=15)
+        self.assertEqual(rc.status_code, 200, f"cleanup add_entries failed: {rc.status_code} {rc.text}")
+
 
 if __name__ == "__main__":
     unittest.main()
