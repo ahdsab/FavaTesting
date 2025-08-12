@@ -29,12 +29,12 @@ class TestRunBQLFromIncomeStatement(unittest.TestCase):
     def setUp(self):
         """
         Create a Chrome browser instance and open the Income Statement page.
-        Uses headless mode if HEADLESS env var is set (for CI environments).
+        Uses headless mode if HEADLESS env var is set (for CI environments),
+        and assigns a unique user data dir to avoid profile lock.
         """
         self._tmp_profile = tempfile.mkdtemp(prefix="chrome-profile-")
 
         chrome_options = Options()
-        # Use a unique user data dir each run to avoid profile lock in CI
         chrome_options.add_argument(f"--user-data-dir={self._tmp_profile}")
         chrome_options.add_argument("--no-first-run")
         chrome_options.add_argument("--no-default-browser-check")
@@ -45,10 +45,12 @@ class TestRunBQLFromIncomeStatement(unittest.TestCase):
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--window-size=1920,1080")
+            self.driver = webdriver.Chrome(options=chrome_options)
+        else:
+            self.driver = webdriver.Chrome()
 
-        self.driver = webdriver.Chrome(options=chrome_options)
 
-        # Avoid maximize in headless (can be a no-op or error); window-size above covers it
+
         if not headless:
             self.driver.maximize_window()
 
@@ -57,7 +59,7 @@ class TestRunBQLFromIncomeStatement(unittest.TestCase):
 
     def tearDown(self):
         """
-        Close the browser after the test.
+        Close the browser and cleanup the temporary profile.
         """
         try:
             self.driver.quit()
