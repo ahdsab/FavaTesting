@@ -45,17 +45,18 @@ class TestRunBQLFromIncomeStatement(unittest.TestCase):
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--window-size=1920,1080")
-            self.driver = webdriver.Chrome(options=chrome_options)
-        else:
-            self.driver = webdriver.Chrome()
 
-
+        # Always pass options so --user-data-dir is used in all cases
+        self.driver = webdriver.Chrome(options=chrome_options)
 
         if not headless:
             self.driver.maximize_window()
 
         self.wait = WebDriverWait(self.driver, 20)
-        self.driver.get("http://54.73.240.131:5000/example-beancount-file/income_statement/")
+        self.driver.get(os.getenv(
+            "Fava_URL",
+            "http://54.73.240.131:5000/example-beancount-file/income_statement/"
+        ))
 
     def tearDown(self):
         """
