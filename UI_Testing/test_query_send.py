@@ -4,6 +4,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from models.page_models import IncomeStatementPage
 from time import sleep
+from selenium.webdriver.chrome.options import Options
+import os
+import tempfile
+import shutil
 
 # The query to run during the test
 BQL_QUERY = (
@@ -25,17 +29,43 @@ class TestRunBQLFromIncomeStatement(unittest.TestCase):
     def setUp(self):
         """
         Create a Chrome browser instance and open the Income Statement page.
+        Uses headless mode if HEADLESS env var is set (for CI environments),
+        and assigns a unique user data dir to avoid profile lock.
         """
-        self.driver = webdriver.Chrome()
-        self.driver.maximize_window()
+        self._tmp_profile = tempfile.mkdtemp(prefix="chrome-profile-")
+
+        chrome_options = Options()
+        chrome_options.add_argument(f"--user-data-dir={self._tmp_profile}")
+        chrome_options.add_argument("--no-first-run")
+        chrome_options.add_argument("--no-default-browser-check")
+
+        headless = os.getenv("HEADLESS", "false").lower() in ("true", "1", "yes")
+        if headless:
+            chrome_options.add_argument("--headless=new")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--window-size=1920,1080")
+
+        # Always pass options so --user-data-dir is used in all cases
+        self.driver = webdriver.Chrome(options=chrome_options)
+
+        if not headless:
+            self.driver.maximize_window()
+
         self.wait = WebDriverWait(self.driver, 20)
-        self.driver.get("http://54.73.240.131:5000/example-beancount-file/income_statement/")
+        self.driver.get(os.getenv(
+            "Fava_URL",
+            "http://54.73.240.131:5000/example-beancount-file/income_statement/"
+        ))
 
     def tearDown(self):
         """
-        Close the browser after the test.
+        Close the browser and cleanup the temporary profile.
         """
-        self.driver.quit()
+        try:
+            self.driver.quit()
+        finally:
+            shutil.rmtree(self._tmp_profile, ignore_errors=True)
 
     def test_run_query_from_income_statement(self):
         """
