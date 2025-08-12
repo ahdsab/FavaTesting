@@ -6,6 +6,8 @@ from models.page_models import IncomeStatementPage
 from time import sleep
 from selenium.webdriver.chrome.options import Options
 import os
+import tempfile
+import shutil
 
 # The query to run during the test
 BQL_QUERY = (
@@ -30,25 +32,31 @@ class TestRunBQLFromIncomeStatement(unittest.TestCase):
         Uses headless mode if HEADLESS env var is set (for CI environments).
         """
         chrome_options = Options()
-        
+
+        # Use a unique user data dir each run to avoid profile lock in CI
+        self._tmp_profile = tempfile.mkdtemp(prefix="chrome-profile-")
+        chrome_options.add_argument(f"--user-data-dir={self._tmp_profile}")
+
         # Enable headless mode for CI or when explicitly requested
         if os.getenv("HEADLESS", "false").lower() in ("true", "1", "yes"):
-            chrome_options.add_argument("--headless=new")  # new headless mode in Chrome
+            chrome_options.add_argument("--headless=new")
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
-        
+
         self.driver = webdriver.Chrome(options=chrome_options)
         self.driver.maximize_window()
         self.wait = WebDriverWait(self.driver, 20)
         self.driver.get("http://54.73.240.131:5000/example-beancount-file/income_statement/")
 
-        
     def tearDown(self):
         """
         Close the browser after the test.
         """
-        self.driver.quit()
+        try:
+            self.driver.quit()
+        finally:
+            shutil.rmtree(self._tmp_profile, ignore_errors=True)
 
     def test_run_query_from_income_statement(self):
         """
