@@ -1,7 +1,11 @@
 import unittest
 import requests
+import os
+from dotenv import load_dotenv
 
-BASE_URL = "http://localhost:5000"
+load_dotenv()
+
+BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")
 ENDPOINT = "/api/add-transaction"  # Not supported in Fava
 
 class TestAddTransactionAPI(unittest.TestCase):
@@ -15,6 +19,7 @@ class TestAddTransactionAPI(unittest.TestCase):
                 {"account": "Expenses:Test", "amount": "-100.00", "currency": "USD"},
             ]
         }
+
         response = requests.post(BASE_URL + ENDPOINT, json=payload)
         self.assertIn(response.status_code, [403, 404])
         print("test_add_valid_transaction: API POST not supported (expected). Status:", response.status_code)
