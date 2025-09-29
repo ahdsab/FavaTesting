@@ -1,7 +1,7 @@
 import unittest
 import requests
 
-BASE_URL = "http://54.73.240.131:5000"
+BASE_URL = "http://54.73.240.131:5001"
 ENDPOINT = "/api/add-transaction"  # Not supported in Fava
 
 class TestAddTransactionAPI(unittest.TestCase):

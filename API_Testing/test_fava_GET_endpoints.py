@@ -1,7 +1,7 @@
 import unittest
 import requests
 
-BASE = "http://54.73.240.131:5000/example-beancount-file/api"
+BASE = "http://54.73.240.131:5001/example-beancount-file/api"
 
 def get_json(path, params=None, timeout=15):
     # Try without slash, then once with slash if 404.
