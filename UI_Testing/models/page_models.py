@@ -18,7 +18,7 @@ class IncomeStatementPage:
         Initialize with the Selenium WebDriver instance and set locators.
         """
         self.driver = driver
-        self.URL = "http://54.73.240.131:5000/example-beancount-file/income_statement/"
+        self.URL = "http://54.73.240.131:5001/example-beancount-file/income_statement/"
         self.query_menu_link = (By.LINK_TEXT, "Query")
         self.driver.implicitly_wait(2)
 
@@ -48,7 +48,7 @@ class QueryPage:
         Initialize with the Selenium WebDriver instance and set locators.
         """
         self.driver = driver
-        self.URL = "http://54.73.240.131:5000/example-beancount-file/query/"
+        self.URL = "http://54.73.240.131:5001/example-beancount-file/query/"
 
         # Locators
         self.editor = (By.CSS_SELECTOR, "div.cm-editor div.cm-content[contenteditable='true']")

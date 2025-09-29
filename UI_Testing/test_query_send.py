@@ -55,7 +55,7 @@ class TestRunBQLFromIncomeStatement(unittest.TestCase):
         self.wait = WebDriverWait(self.driver, 20)
         self.driver.get(os.getenv(
             "Fava_URL",
-            "http://54.73.240.131:5000/example-beancount-file/income_statement/"
+            "http://54.73.240.131:5001/example-beancount-file/income_statement/"
         ))
 
     def tearDown(self):
